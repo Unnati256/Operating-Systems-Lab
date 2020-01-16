@@ -8,7 +8,12 @@ Created:	March 15, 1994 by Philip Homburg <philip@f-mnx.phicoh.com>
 */
 
 #include <minix/drivers.h>
-#include <minix/netdriver.h>
+
+#include <net/gen/ether.h>
+#include <net/gen/eth_io.h>
+#if __minix_vmd
+#include "config.h"
+#endif
 
 #include "local.h"
 #include "dp8390.h"
@@ -32,6 +37,7 @@ static u8_t	pat3[]= { 0x96, 0x69, 0x5A, 0xA5 };
 static int test_8(dpeth_t *dep, int pos, u8_t *pat);
 static int test_16(dpeth_t *dep, int pos, u8_t *pat);
 static void ne_stop(dpeth_t *dep);
+static void milli_delay(unsigned long millis);
 
 /*===========================================================================*
  *				ne_probe				     *
@@ -55,9 +61,9 @@ int ne_probe(dpeth_t *dep)
 	{
 		/* Reset the ethernet card */
 		byte= inb_ne(dep, NE_RESET);
-		micro_delay(2000);
+		milli_delay(2);
 		outb_ne(dep, NE_RESET, byte);
-		micro_delay(2000);
+		milli_delay(2);
 
 		/* Reset the dp8390 */
 		outb_reg0(dep, DP_CR, CR_STP | CR_DM_ABORT);
@@ -138,11 +144,11 @@ dpeth_t *dep;
 		if (dep->de_16bit)
 		{
 			word= inw_ne(dep, NE_DATA);
-			dep->de_address.na_addr[i]= word;
+			dep->de_address.ea_addr[i]= word;
 		}
 		else
 		{
-			dep->de_address.na_addr[i] = inb_ne(dep, NE_DATA);
+			dep->de_address.ea_addr[i] = inb_ne(dep, NE_DATA);
 		}
 	}
 	dep->de_data_port= dep->de_base_port + NE_DATA;
@@ -179,14 +185,14 @@ dpeth_t *dep;
 	if (!debug)
 	{
 		printf("%s: NE%d000 at %X:%d\n",
-			netdriver_name(), dep->de_16bit ? 2 : 1,
+			dep->de_name, dep->de_16bit ? 2 : 1,
 			dep->de_base_port, dep->de_irq);
 	}
 	else
 	{
 		printf("%s: Novell NE%d000 ethernet card at I/O address "
 			"0x%X, memory size 0x%X, irq %d\n",
-			netdriver_name(), dep->de_16bit ? 2 : 1,
+			dep->de_name, dep->de_16bit ? 2 : 1,
 			dep->de_base_port, dep->de_ramsize, dep->de_irq);
 	}
 }
@@ -225,7 +231,7 @@ u8_t *pat;
 		if (debug)
 		{
 			printf("%s: NE1000 remote DMA test failed\n",
-				netdriver_name());
+				dep->de_name);
 		}
 		return 0;
 	}
@@ -279,7 +285,7 @@ u8_t *pat;
 		if (debug)
 		{
 			printf("%s: NE2000 remote DMA test failed\n",
-				netdriver_name());
+				dep->de_name);
 		}
 		return 0;
 	}
@@ -309,8 +315,13 @@ dpeth_t *dep;
 
 	/* Reset the ethernet card */
 	byte= inb_ne(dep, NE_RESET);
-	micro_delay(2000);
+	milli_delay(2);
 	outb_ne(dep, NE_RESET, byte);
+}
+
+static void milli_delay(unsigned long millis)
+{
+	tickdelay(MILLIS_TO_TICKS(millis));
 }
 
 #endif /* ENABLE_NE2000 */

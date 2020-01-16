@@ -109,36 +109,6 @@ static void pagefault( struct proc *pr,
 	return;
 }
 
-static void
-data_abort(int is_nested, struct proc *pr, reg_t *saved_lr,
-		       struct ex_s *ep, u32_t dfar, u32_t dfsr)
-{
-	/* Extract fault status bit [0:3, 10] from DFSR */
-	u32_t fs = dfsr & 0x0F;
-	fs |= ((dfsr >> 6) & 0x10);
-
-	 /* Translation and permission faults are handled as pagefaults. */
-	if (is_trans_fault(fs) || is_perm_fault(fs)) {
-		pagefault(pr, saved_lr, is_nested, dfar, dfsr);
-	} else if (!is_nested) {
-		/* A user process caused some other kind of data abort. */
-		int signum = SIGSEGV;
-
-		if (is_align_fault(fs)) {
-			signum = SIGBUS;
-		} else {
-			printf("KERNEL: unknown data abort by proc %d sending "
-			       "SIGSEGV (dfar=0x%lx dfsr=0x%lx fs=0x%lx)\n",
-			       proc_nr(pr), dfar, dfsr, fs);
-		}
-		cause_sig(proc_nr(pr), signum);
-	} else { /* is_nested */
-		printf("KERNEL: inkernel data abort - disaster (dfar=0x%lx "
-		       "dfsr=0x%lx fs=0x%lx)\n", dfar, dfsr, fs);
-		inkernel_disaster(pr, saved_lr, ep, is_nested);
-	}
-}
-
 static void inkernel_disaster(struct proc *saved_proc,
 	reg_t *saved_lr, struct ex_s *ep,
 	int is_nested)
@@ -201,12 +171,11 @@ void exception_handler(int is_nested, reg_t *saved_lr, int vector)
   }
 
   if (vector == DATA_ABORT_VECTOR) {
-	data_abort(is_nested, saved_proc, saved_lr, ep, read_dfar(), read_dfsr());
+	pagefault(saved_proc, saved_lr, is_nested, read_dfar(), read_dfsr());
 	return;
   }
 
   if (!is_nested && vector == PREFETCH_ABORT_VECTOR) {
-	static int warned = FALSE;
 	reg_t ifar = read_ifar(), ifsr = read_ifsr();
 
 	/* The saved_lr is the instruction we're going to execute after
@@ -214,21 +183,9 @@ void exception_handler(int is_nested, reg_t *saved_lr, int vector)
 	 * while fetching the instruction. As far as we know the two
 	 * should be the same, if not this assumption will lead to very
 	 * hard to debug problems (instruction executing being off by one)
-	 * and this assumption needs re-examining.
-	 *
-	 * UPDATE: at least qemu-linaro does in fact sometimes generate faults
-	 * with LR and IFAR differing by as many as 64 bytes.  While the page
-	 * fault resolution code below handles this case just fine, the cause
-	 * of this behavior is unknown.  We have not yet seen the same on
-	 * actual hardware, which is why we warn about this problem once.
+	 * and this assumption needs re-examining, hence the assert.
 	 */
-	if (*saved_lr != ifar && !warned) {
-		printf("KERNEL: prefetch abort with differing IFAR and LR\n");
-		printf("KERNEL: IFSR %"PRIx32" IFAR %"PRIx32" LR %"PRIx32" in "
-		    "%s/%d\n", ifsr, ifar, *saved_lr, saved_proc->p_name,
-		    saved_proc->p_endpoint);
-		warned = TRUE;
-	}
+	assert(*saved_lr == ifar);
 	pagefault(saved_proc, saved_lr, is_nested, ifar, ifsr);
 	return;
   }

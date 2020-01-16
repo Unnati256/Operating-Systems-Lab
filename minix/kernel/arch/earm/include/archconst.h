@@ -21,16 +21,6 @@
 #define INTERRUPT_VECTOR              6
 #define FAST_INTERRUPT_VECTOR         7
 
-/* Data abort helper */
-#define is_align_fault(fault_status) \
-	((fault_status) == FAULT_ALIGN_0)
-
-#define is_trans_fault(fault_status) \
-	(((fault_status) == FAULT_TRANS_S) || ((fault_status) == FAULT_TRANS_P))
-
-#define is_perm_fault(fault_status) \
-	(((fault_status) == FAULT_PERM_S) || ((fault_status) == FAULT_PERM_P))
-
 /*
  * defines how many bytes are reserved at the top of the kernel stack for global
  * information like currently scheduled process or current cpu id

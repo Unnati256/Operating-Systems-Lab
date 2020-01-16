@@ -12,7 +12,9 @@
  */
 
 #include <minix/drivers.h>
-#include <minix/netdriver.h>
+
+#include <net/gen/ether.h>
+#include <net/gen/eth_io.h>
 
 #include "local.h"
 #include "dp8390.h"
@@ -26,6 +28,7 @@ extern u32_t system_hz;
 
 static void el2_init(dpeth_t *dep);
 static void el2_stop(dpeth_t *dep);
+static void milli_delay(unsigned long millis);
 
 /*===========================================================================*
  *				el2_init				     *
@@ -44,7 +47,7 @@ dpeth_t * dep;
 
   /* Read station address from PROM */
   for (ix = EL2_EA0; ix <= EL2_EA5; ix += 1)
-	dep->de_address.na_addr[ix] = inb_el2(dep, ix);
+	dep->de_address.ea_addr[ix] = inb_el2(dep, ix);
 
   /* Map the 8390 back to lower I/O address range */
   outb_el2(dep, EL2_CNTR, cntr);
@@ -104,12 +107,12 @@ dpeth_t * dep;
 
   if (!debug) {
 	printf("%s: 3c503 at %X:%d:%lX\n",
-		netdriver_name(), dep->de_base_port, dep->de_irq,
+		dep->de_name, dep->de_base_port, dep->de_irq,
 		dep->de_linmem + dep->de_offset_page);
   } else {
 	printf("%s: 3Com Etherlink II %sat I/O address 0x%X, "
 			"memory address 0x%lX, irq %d\n",
-		netdriver_name(), dep->de_16bit ? "(16-bit) " : "",
+		dep->de_name, dep->de_16bit ? "(16-bit) " : "",
 		dep->de_base_port,
 		dep->de_linmem + dep->de_offset_page,
 		dep->de_irq);
@@ -125,7 +128,7 @@ dpeth_t * dep;
   /* Stops board by disabling interrupts. */
 
 #if DEBUG
-  printf("%s: stopping Etherlink\n", netdriver_name());
+  printf("%s: stopping Etherlink\n", dep->de_name);
 #endif
   outb_el2(dep, EL2_CFGR, ECFGR_IRQOFF);
   return;
@@ -153,9 +156,9 @@ dpeth_t * dep;
 
   /* Resets board */
   outb_el2(dep, EL2_CNTR, ECNTR_RESET | thin);
-  micro_delay(1000);
+  milli_delay(1);
   outb_el2(dep, EL2_CNTR, thin);
-  micro_delay(5000);
+  milli_delay(5);
 
   /* Map the address PROM to lower I/O address range */
   outb_el2(dep, EL2_CNTR, ECNTR_SAPROM | thin);
@@ -181,6 +184,11 @@ dpeth_t * dep;
   dep->de_initf = el2_init;
   dep->de_stopf = el2_stop;
   return 1;
+}
+
+static void milli_delay(unsigned long millis)
+{
+	tickdelay(MILLIS_TO_TICKS(millis));
 }
 
 #endif /* ENABLE_3C503 */

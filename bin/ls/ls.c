@@ -1,4 +1,4 @@
-/*	$NetBSD: ls.c,v 1.76 2017/02/06 21:06:04 rin Exp $	*/
+/*	$NetBSD: ls.c,v 1.70 2012/11/20 12:37:29 abs Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993, 1994
@@ -42,7 +42,7 @@ __COPYRIGHT("@(#) Copyright (c) 1989, 1993, 1994\
 #if 0
 static char sccsid[] = "@(#)ls.c	8.7 (Berkeley) 8/5/94";
 #else
-__RCSID("$NetBSD: ls.c,v 1.76 2017/02/06 21:06:04 rin Exp $");
+__RCSID("$NetBSD: ls.c,v 1.70 2012/11/20 12:37:29 abs Exp $");
 #endif
 #endif /* not lint */
 
@@ -91,7 +91,7 @@ int f_columnacross;		/* columnated format, sorted across */
 int f_flags;			/* show flags associated with a file */
 int f_grouponly;		/* long listing without owner */
 int f_humanize;			/* humanize the size field */
-int f_commas;			/* separate size field with comma */
+int f_commas;           /* separate size field with comma */
 int f_inode;			/* print inode */
 int f_listdir;			/* list actual directory, not contents */
 int f_listdot;			/* list files beginning with . */
@@ -111,15 +111,13 @@ int f_stream;			/* stream format */
 int f_type;			/* add type character for non-regular files */
 int f_typedir;			/* add type character for directories */
 int f_whiteout;			/* show whiteout entries */
-int f_fullpath;			/* print full pathname, not filename */
-int f_leafonly;			/* when recursing, print leaf names only */
 
 __dead static void
 usage(void)
 {
 
 	(void)fprintf(stderr,
-	    "usage: %s [-1AaBbCcdFfghikLlMmnOoPpqRrSsTtuWwXx] [file ...]\n",
+	    "usage: %s [-1AaBbCcdFfghikLlMmnopqRrSsTtuWwx] [file ...]\n",
 	    getprogname());
 	exit(EXIT_FAILURE);
 	/* NOTREACHED */
@@ -151,8 +149,7 @@ ls_main(int argc, char *argv[])
 		f_listdot = 1;
 
 	fts_options = FTS_PHYSICAL;
-	while ((ch = getopt(argc, argv, "1AaBbCcdFfghikLlMmnOoPpqRrSsTtuWwXx"))
-	    != -1) {
+	while ((ch = getopt(argc, argv, "1ABCFLMRSTWabcdfghiklmnopqrstuwx")) != -1) {
 		switch (ch) {
 		/*
 		 * The -1, -C, -l, -m and -x options all override each other so
@@ -207,9 +204,6 @@ ls_main(int argc, char *argv[])
 		case 'R':
 			f_recursive = 1;
 			break;
-		case 'f':
-			f_nosort = 1;
-			/* FALLTHROUGH */
 		case 'a':
 			fts_options |= FTS_SEEDOT;
 			/* FALLTHROUGH */
@@ -232,6 +226,9 @@ ls_main(int argc, char *argv[])
 		case 'd':
 			f_listdir = 1;
 			f_recursive = 0;
+			break;
+		case 'f':
+			f_nosort = 1;
 			break;
 		case 'i':
 			f_inode = 1;
@@ -256,14 +253,8 @@ ls_main(int argc, char *argv[])
 			f_longform = 1;
 			f_column = f_columnacross = f_singlecol = f_stream = 0;
 			break;
-		case 'O':
-			f_leafonly = 1;
-			break;
 		case 'o':
 			f_flags = 1;
-			break;
-		case 'P':
-			f_fullpath = 1;
 			break;
 		case 'p':
 			f_typedir = 1;
@@ -297,9 +288,6 @@ ls_main(int argc, char *argv[])
 			f_nonprint = 0;
 			f_octal = 0;
 			f_octal_escape = 0;
-			break;
-		case 'X':
-			fts_options |= FTS_XDEV;
 			break;
 		default:
 		case '?':
@@ -458,13 +446,11 @@ traverse(int argc, char *argv[], int options)
 			 * a separator.  If multiple arguments, precede each
 			 * directory with its name.
 			 */
-			if (!f_leafonly) {
-				if (output)
-					(void)printf("\n%s:\n", p->fts_path);
-				else if (argc > 1) {
-					(void)printf("%s:\n", p->fts_path);
-					output = 1;
-				}
+			if (output)
+				(void)printf("\n%s:\n", p->fts_path);
+			else if (argc > 1) {
+				(void)printf("%s:\n", p->fts_path);
+				output = 1;
 			}
 
 			chp = fts_children(ftsp, ch_options);
@@ -631,7 +617,7 @@ display(FTSENT *p, FTSENT *list)
 		if (f_humanize) {
 			d.s_block = 4; /* min buf length for humanize_number */
 		} else {
-			(void)snprintf(buf, sizeof(buf), "%lld",
+			(void)snprintf(buf, sizeof(buf), "%llu",
 			    (long long)howmany(maxblock, blocksize));
 			d.s_block = strlen(buf);
 			if (f_commas) /* allow for commas before every third digit */
@@ -647,7 +633,7 @@ display(FTSENT *p, FTSENT *list)
 		if (f_humanize) {
 			d.s_size = 4; /* min buf length for humanize_number */
 		} else {
-			(void)snprintf(buf, sizeof(buf), "%lld",
+			(void)snprintf(buf, sizeof(buf), "%llu",
 			    (long long)maxsize);
 			d.s_size = strlen(buf);
 			if (f_commas) /* allow for commas before every third digit */
@@ -655,9 +641,9 @@ display(FTSENT *p, FTSENT *list)
 		}
 		d.s_user = maxuser;
 		if (bcfile) {
-			(void)snprintf(buf, sizeof(buf), "%d", maxmajor);
+			(void)snprintf(buf, sizeof(buf), "%u", maxmajor);
 			d.s_major = strlen(buf);
-			(void)snprintf(buf, sizeof(buf), "%d", maxminor);
+			(void)snprintf(buf, sizeof(buf), "%u", maxminor);
 			d.s_minor = strlen(buf);
 			if (d.s_major + d.s_minor + 2 > d.s_size)
 				d.s_size = d.s_major + d.s_minor + 2;

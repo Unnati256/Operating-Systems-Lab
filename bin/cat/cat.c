@@ -1,4 +1,4 @@
-/* $NetBSD: cat.c,v 1.57 2016/06/16 00:52:37 sevan Exp $	*/
+/* $NetBSD: cat.c,v 1.52 2012/11/19 19:41:31 christos Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993
@@ -44,7 +44,7 @@ __COPYRIGHT(
 #if 0
 static char sccsid[] = "@(#)cat.c	8.2 (Berkeley) 4/27/95";
 #else
-__RCSID("$NetBSD: cat.c,v 1.57 2016/06/16 00:52:37 sevan Exp $");
+__RCSID("$NetBSD: cat.c,v 1.52 2012/11/19 19:41:31 christos Exp $");
 #endif
 #endif /* not lint */
 
@@ -175,16 +175,18 @@ cook_buf(FILE *fp)
 	line = gobble = 0;
 	for (prev = '\n'; (ch = getc(fp)) != EOF; prev = ch) {
 		if (prev == '\n') {
-			if (sflag) {
-				if (ch == '\n') {
-					if (gobble)
-						continue;
+			if (ch == '\n') {
+				if (sflag) {
+					if (!gobble && nflag && !bflag)
+						(void)fprintf(stdout,
+							"%6d\t\n", ++line);
+					else if (!gobble && putchar(ch) == EOF)
+						break;
 					gobble = 1;
-				} else
-					gobble = 0;
+					continue;
 				}
 				if (nflag) {
-					if (!bflag || ch != '\n') {
+					if (!bflag) {
 						(void)fprintf(stdout,
 						    "%6d\t", ++line);
 						if (ferror(stdout))
@@ -196,7 +198,13 @@ cook_buf(FILE *fp)
 							break;
 					}
 				}
+			} else if (nflag) {
+				(void)fprintf(stdout, "%6d\t", ++line);
+				if (ferror(stdout))
+					break;
 			}
+		}
+		gobble = 0;
 		if (ch == '\n') {
 			if (eflag)
 				if (putchar('$') == EOF)
@@ -242,11 +250,9 @@ raw_args(char **argv)
 	filename = "stdin";
 	do {
 		if (*argv) {
-			if (!strcmp(*argv, "-")) {
+			if (!strcmp(*argv, "-"))
 				fd = fileno(stdin);
-				if (fd < 0)
-					goto skip;
-			} else if (fflag) {
+			else if (fflag) {
 				struct stat st;
 				fd = open(*argv, O_RDONLY|O_NONBLOCK, 0);
 				if (fd < 0)
@@ -271,8 +277,6 @@ skipnomsg:
 				continue;
 			}
 			filename = *argv++;
-		} else if (fd < 0) {
-			err(EXIT_FAILURE, "stdin");
 		}
 		raw_cat(fd);
 		if (fd != fileno(stdin))
@@ -290,8 +294,6 @@ raw_cat(int rfd)
 	int wfd;
 
 	wfd = fileno(stdout);
-	if (wfd < 0)
-		err(EXIT_FAILURE, "stdout");
 	if (buf == NULL) {
 		struct stat sbuf;
 

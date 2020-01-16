@@ -19,6 +19,7 @@
 #include <sys/ioc_disk.h>
 #include <machine/pci.h>
 #include <sys/mman.h>
+#include <sys/svrctl.h>
 
 /* Variables. */
 
@@ -182,6 +183,7 @@ static void sef_local_startup(void)
 {
   /* Register init callbacks. */
   sef_setcb_init_fresh(sef_cb_init_fresh);
+  sef_setcb_init_lu(sef_cb_init_fresh);
 
   /* Register live update callbacks. */
   sef_setcb_lu_prepare(sef_cb_lu_prepare);
@@ -1729,9 +1731,8 @@ static int atapi_open(void)
 /* Should load and lock the device and obtain its size.  For now just set the
  * size of the device to something big.  What is really needed is a generic
  * SCSI layer that does all this stuff for ATAPI and SCSI devices (kjb). (XXX)
- * .."something big" is now the maximum size of the largest type of DVD.
  */
-  w_wn->part[0].dv_size = (u64_t)(8500L*1024) * 1024;
+  w_wn->part[0].dv_size = (u64_t)(800L*1024) * 1024;
   return(OK);
 }
 
