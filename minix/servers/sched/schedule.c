@@ -13,6 +13,7 @@
 #include <minix/com.h>
 #include <machine/archtypes.h>
 #include "kernel/proc.h" /* for queue constants */
+#include "include/minix/endpoint.h"
 
 static minix_timer_t sched_timer;
 static unsigned balance_timeout;
@@ -100,7 +101,7 @@ int do_noquantum(message *m_ptr)
 
 	rmp = &schedproc[proc_nr_n];
 	if (rmp->priority < MIN_USER_Q) {
-		rmp->priority += 1; /* lower priority */
+		rmp->priority += 1; /* lower priority */   //increasing the priority
 	}
 
 	if ((rv = schedule_process_local(rmp)) != OK) {
@@ -325,6 +326,8 @@ static int schedule_process(struct schedproc * rmp, unsigned flags)
 		rmp->endpoint, err);
 	}		
 
+	if (rmp->endpoint >= USER_Q)
+		printf("Minix: PID %d swapped in\n", _ENDPOINT_P(rmp->endpoint));
 	return err;
 }
 
